@@ -1,0 +1,2253 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Portfolio — BTS SIO · Épreuve E5</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;1,300;1,400;1,500&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;1,9..40,300&family=DM+Mono:wght@300;400&display=swap" rel="stylesheet">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <style>
+    /* ─── 3D GLOBAL CANVAS ─── */
+    #hero-canvas {
+      position:fixed; inset:0; z-index:0;
+      width:100%; height:100%;
+      pointer-events:none;
+    }
+
+    /* ─── RESET & VARIABLES ─── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; font-size: 16px; background: var(--bg); }
+
+    :root {
+      --bg:       #06080e;
+      --bg2:      #090c14;
+      --surface:  rgba(14,18,32,0.82);
+      --surface2: rgba(19,24,40,0.85);
+      --surface3: rgba(25,32,48,0.88);
+      --border:   rgba(160,180,230,0.07);
+      --border2:  rgba(160,180,230,0.13);
+      --gold:        #8eb4e0;
+      --gold-light:  #b8d4f4;
+      --gold-dim:    rgba(142,180,224,0.12);
+      --text:        #dce6f4;
+      --text-muted:  rgba(210,226,244,0.55);
+      --text-dim:    rgba(210,226,244,0.28);
+      --text-xdim:   rgba(210,226,244,0.10);
+      --accent:      #6aa3d4;
+      --radius: 1px;
+      --nav-h: 68px;
+    }
+
+    body {
+      background: transparent;
+      color: var(--text);
+      font-family: 'DM Sans', sans-serif;
+      font-weight: 300;
+      font-size: 15px;
+      line-height: 1.75;
+      overflow-x: hidden;
+    }
+
+
+    /* ─── PDF VIEWER MODAL ─── */
+    .pdf-overlay {
+      position:fixed; inset:0; z-index:9000;
+      background:rgba(4,6,12,0.94); backdrop-filter:blur(10px);
+      display:flex; align-items:center; justify-content:center;
+      opacity:0; pointer-events:none; transition:opacity .3s;
+    }
+    .pdf-overlay.open { opacity:1; pointer-events:all; }
+    .pdf-box {
+      width:min(940px,94vw); height:90vh;
+      background:var(--surface); border:1px solid var(--border2);
+      display:flex; flex-direction:column;
+    }
+    .pdf-bar {
+      display:flex; align-items:center; justify-content:space-between;
+      padding:12px 18px; border-bottom:1px solid var(--border); flex-shrink:0;
+    }
+    .pdf-bar-title {
+      font-family:'DM Mono',monospace; font-size:10px;
+      letter-spacing:.18em; text-transform:uppercase; color:var(--gold);
+    }
+    .pdf-close {
+      background:none; border:1px solid var(--border2); color:var(--text-muted);
+      width:30px; height:30px; cursor:pointer; font-size:18px; line-height:1;
+      display:flex; align-items:center; justify-content:center;
+      transition:color .2s,border-color .2s;
+    }
+    .pdf-close:hover { color:var(--text); border-color:var(--gold); }
+    .pdf-box iframe { flex:1; width:100%; border:none; }
+    /* View button */
+    .btn-view {
+      display:inline-flex; align-items:center; gap:5px;
+      padding:0 18px; font-family:'DM Mono',monospace;
+      font-size:10px; letter-spacing:.14em; text-transform:uppercase;
+      color:var(--gold); border:1px solid rgba(142,180,224,0.3);
+      background:var(--gold-dim); cursor:pointer; white-space:nowrap;
+      text-decoration:none; transition:background .2s,border-color .2s;
+      align-self:stretch;
+    }
+    .btn-view:hover { background:rgba(142,180,224,0.18); border-color:var(--gold); }
+    .doc-row-group { display:flex; align-items:stretch; gap:2px; margin-bottom:2px; }
+    .doc-row-group .doc-row { flex:1; margin-bottom:0; }
+
+    /* ─── DARK BASE LAYER (behind canvas) ─── */
+
+    /* ─── GRAIN OVERLAY ─── */
+    body::before {
+      content:'';
+      position:fixed; inset:0; z-index:9998;
+      background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.035'/%3E%3C/svg%3E");
+      pointer-events:none; opacity:0.45;
+    }
+
+    /* ─── PROGRESS BAR ─── */
+    #progress-bar {
+      position:fixed; top:0; left:0; height:2px;
+      background:linear-gradient(90deg, var(--gold), var(--gold-light));
+      width:0%; z-index:10000;
+      transition:width 0.1s linear;
+    }
+
+    /* ─── SCROLLBAR ─── */
+    ::-webkit-scrollbar { width:3px; }
+    ::-webkit-scrollbar-track { background:var(--bg); }
+    ::-webkit-scrollbar-thumb { background:rgba(200,169,109,0.4); border-radius:10px; }
+
+    /* ─── NAV ─── */
+    nav {
+      position:fixed; top:0; left:0; right:0; z-index:200;
+      height:var(--nav-h);
+      display:flex; align-items:center; justify-content:space-between;
+      padding:0 56px;
+      background:rgba(8,10,15,0.88);
+      backdrop-filter:blur(24px) saturate(1.2);
+      border-bottom:1px solid var(--border);
+      transition:background 0.4s;
+    }
+
+    .nav-logo {
+      font-family:'Cormorant Garamond',serif;
+      font-size:19px; font-weight:400;
+      letter-spacing:0.08em;
+      color:var(--gold);
+      cursor:pointer;
+      transition:opacity 0.3s;
+    }
+    .nav-logo:hover { opacity:0.75; }
+
+    .nav-links {
+      display:flex; gap:32px; list-style:none;
+    }
+
+    .nav-links a {
+      text-decoration:none;
+      color:var(--text-dim);
+      font-size:11px;
+      letter-spacing:0.14em;
+      text-transform:uppercase;
+      transition:color 0.25s;
+      position:relative; padding-bottom:2px;
+    }
+    .nav-links a::after {
+      content:''; position:absolute; bottom:-2px; left:0; right:0;
+      height:1px; background:var(--gold);
+      transform:scaleX(0); transform-origin:left;
+      transition:transform 0.3s;
+    }
+    .nav-links a:hover, .nav-links a.active { color:var(--gold); }
+    .nav-links a.active::after, .nav-links a:hover::after { transform:scaleX(1); }
+
+    .nav-right { display:flex; align-items:center; gap:16px; }
+
+    .nav-cv-btn {
+      font-size:10px; letter-spacing:0.14em; text-transform:uppercase;
+      padding:9px 22px;
+      border:1px solid rgba(200,169,109,0.4);
+      color:var(--gold); background:transparent;
+      cursor:pointer; text-decoration:none;
+      transition:all 0.3s;
+    }
+    .nav-cv-btn:hover {
+      background:var(--gold); color:var(--bg);
+      border-color:var(--gold);
+    }
+
+    /* ─── LAYOUT ─── */
+    .page {
+      min-height:100vh;
+      display:none;
+      opacity:0;
+      transform:translateY(14px);
+      transition:opacity 0.55s ease, transform 0.55s ease;
+    }
+    .page.active { display:block; }
+    .page.visible { opacity:1; transform:translateY(0); }
+    #home.active { display:flex; }
+
+    .inner {
+      max-width:1160px;
+      margin:0 auto;
+      padding: calc(var(--nav-h) + 64px) 56px 80px;
+    }
+
+    /* ─── SECTION HEADER ─── */
+    .section-head { margin-bottom:64px; }
+
+    .eyebrow {
+      display:inline-flex; align-items:center; gap:10px;
+      font-family:'DM Mono', monospace;
+      font-size:10px; letter-spacing:0.22em; text-transform:uppercase;
+      color:var(--gold); margin-bottom:20px;
+    }
+    .eyebrow::before {
+      content:''; display:block;
+      width:24px; height:1px; background:var(--gold); opacity:0.5;
+    }
+
+    h1 {
+      font-family:'Cormorant Garamond',serif;
+      font-size:clamp(52px,7.5vw,96px);
+      font-weight:300; line-height:1.02;
+      letter-spacing:-0.01em;
+    }
+    h1 em { font-style:italic; color:var(--gold); }
+
+    h2 {
+      font-family:'Cormorant Garamond',serif;
+      font-size:clamp(34px,4.5vw,58px);
+      font-weight:300; line-height:1.12;
+    }
+    h2 em { font-style:italic; color:var(--gold); }
+
+    h3 {
+      font-family:'Cormorant Garamond',serif;
+      font-size:22px; font-weight:400; margin-bottom:16px;
+    }
+
+    .lead {
+      font-size:16px; color:var(--text-muted);
+      max-width:600px; line-height:1.85;
+      margin-top:20px;
+    }
+
+    .rule { width:40px; height:1px; background:var(--gold); margin:24px 0; }
+
+    /* ─── HOME ─── */
+    #home {
+      min-height:100vh;
+      align-items:center;
+      padding:0; position:relative; overflow:hidden;
+    }
+
+    .home-bg {
+      position:absolute; inset:0; z-index:0;
+      background:
+        radial-gradient(ellipse 80% 60% at 70% 50%, rgba(80,130,200,0.06) 0%, transparent 65%),
+        radial-gradient(ellipse 50% 50% at 20% 80%, rgba(40,80,160,0.05) 0%, transparent 60%);
+    }
+
+    /* Decorative grid */
+    .home-grid-deco {
+      position:absolute; right:0; top:0; bottom:0;
+      width:42%; z-index:0; overflow:hidden;
+    }
+    .home-grid-deco::before {
+      content:'';
+      position:absolute; inset:0;
+      background-image:
+        linear-gradient(rgba(100,140,220,0.04) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(100,140,220,0.04) 1px, transparent 1px);
+      background-size:40px 40px;
+      mask-image:linear-gradient(to left, rgba(0,0,0,0.5) 0%, transparent 100%);
+    }
+
+    .home-inner {
+      max-width:1160px; margin:0 auto;
+      padding:0 56px;
+      width:100%;
+      display:grid;
+      grid-template-columns:1fr 360px;
+      gap:80px;
+      align-items:center;
+      position:relative; z-index:1;
+    }
+
+    .home-tagline {
+      font-size:16.5px; line-height:1.85;
+      color:var(--text-muted); max-width:520px;
+      margin-top:24px;
+    }
+
+    .home-meta {
+      margin-top:48px;
+      display:flex; gap:44px;
+      padding-top:36px;
+      border-top:1px solid var(--border);
+    }
+
+    .meta-item .label {
+      font-family:'DM Mono',monospace;
+      font-size:9px; letter-spacing:0.2em; text-transform:uppercase;
+      color:var(--text-dim); margin-bottom:6px;
+    }
+    .meta-item .val {
+      font-size:14px; color:var(--text);
+    }
+
+    .home-actions {
+      margin-top:40px;
+      display:flex; gap:14px; align-items:center;
+    }
+
+    .btn-gold {
+      display:inline-flex; align-items:center; gap:10px;
+      padding:13px 30px;
+      background:var(--gold); color:var(--bg);
+      font-family:'DM Sans',sans-serif;
+      font-size:11px; font-weight:500;
+      letter-spacing:0.12em; text-transform:uppercase;
+      text-decoration:none; border:none; cursor:pointer;
+      transition:all 0.3s;
+    }
+    .btn-gold:hover { background:var(--gold-light); transform:translateY(-2px); }
+
+    .btn-outline {
+      display:inline-flex; align-items:center; gap:10px;
+      padding:13px 26px;
+      background:transparent; color:var(--text-muted);
+      font-family:'DM Sans',sans-serif;
+      font-size:11px; letter-spacing:0.12em; text-transform:uppercase;
+      text-decoration:none; border:1px solid var(--border2); cursor:pointer;
+      transition:all 0.3s;
+    }
+    .btn-outline:hover { border-color:var(--gold); color:var(--gold); }
+
+    .skills-strip {
+      margin-top:52px; padding-top:36px;
+      border-top:1px solid var(--border);
+      display:flex; gap:10px; flex-wrap:wrap;
+    }
+
+    .skill-pill {
+      font-family:'DM Mono',monospace;
+      font-size:9.5px; letter-spacing:0.1em; text-transform:uppercase;
+      color:var(--text-dim); padding:5px 13px;
+      border:1px solid var(--border);
+      transition:all 0.25s;
+    }
+    .skill-pill:hover { border-color:rgba(200,169,109,0.35); color:var(--gold); }
+
+    /* Photo frame */
+    .photo-wrap { position:relative; }
+
+    .photo-frame {
+      width:100%; aspect-ratio:3/4;
+      background:var(--surface);
+      border:1px solid var(--border2);
+      position:relative; overflow:hidden;
+      display:flex; align-items:center; justify-content:center;
+    }
+
+    .photo-frame img {
+      width:100%; height:100%; object-fit:cover;
+    }
+
+    .photo-overlay {
+      position:absolute; inset:0;
+      background:linear-gradient(135deg, rgba(100,150,220,0.07) 0%, transparent 55%);
+      pointer-events:none;
+    }
+
+    .corner {
+      position:absolute; width:22px; height:22px;
+      border-color:var(--gold); border-style:solid;
+    }
+    .corner.tl { top:10px; left:10px; border-width:1px 0 0 1px; }
+    .corner.br { bottom:10px; right:10px; border-width:0 1px 1px 0; }
+
+    .photo-placeholder {
+      text-align:center; color:var(--text-dim);
+    }
+    .photo-placeholder svg { width:44px; height:44px; margin-bottom:10px; opacity:0.2; }
+    .photo-placeholder p { font-size:11px; letter-spacing:0.1em; text-transform:uppercase; }
+
+    .photo-caption {
+      position:absolute; bottom:0; left:0; right:0;
+      padding:16px 20px;
+      background:linear-gradient(transparent, rgba(8,10,15,0.9));
+      font-size:11px; letter-spacing:0.1em; text-transform:uppercase;
+      color:var(--gold); text-align:center;
+    }
+
+    /* ─── STAGE ─── */
+    .stage-grid {
+      display:grid;
+      grid-template-columns:1fr 1fr;
+      gap:1px;
+      background:var(--border);
+      border:1px solid var(--border);
+      margin-bottom:48px;
+    }
+
+    .info-cell {
+      background:var(--surface);
+      padding:28px 32px;
+      position:relative;
+    }
+    .info-cell:hover { background:var(--surface2); }
+
+    .cell-label {
+      font-family:'DM Mono',monospace;
+      font-size:9px; letter-spacing:0.2em; text-transform:uppercase;
+      color:var(--gold); margin-bottom:10px;
+    }
+    .cell-value { font-size:15px; color:var(--text); margin-bottom:6px; }
+    .cell-sub { font-size:13px; color:var(--text-muted); }
+
+    .mission-block {
+      background:var(--surface);
+      border:1px solid var(--border);
+      border-left:2px solid var(--gold);
+      padding:32px 36px;
+      margin-bottom:32px;
+      font-size:15px; color:var(--text-muted);
+      line-height:1.9; font-style:italic;
+    }
+
+    .block-title {
+      font-family:'Cormorant Garamond',serif;
+      font-size:20px; font-weight:400;
+      margin-bottom:24px; color:var(--text);
+      display:flex; align-items:center; gap:14px;
+    }
+    .block-title::after {
+      content:''; flex:1; height:1px;
+      background:var(--border);
+    }
+
+    .comp-box {
+      background:var(--surface);
+      border:1px solid var(--border);
+      padding:32px 36px;
+      margin-bottom:32px;
+    }
+
+    .comp-list { list-style:none; display:flex; flex-direction:column; gap:14px; }
+
+    .comp-list li {
+      display:flex; align-items:flex-start; gap:14px;
+      font-size:14px; color:var(--text-muted); line-height:1.7;
+    }
+    .comp-list li::before {
+      content:'◆'; color:var(--gold); font-size:7px;
+      margin-top:7px; flex-shrink:0;
+    }
+
+    .ctag {
+      display:inline-block;
+      font-family:'DM Mono',monospace;
+      font-size:9px; letter-spacing:0.08em;
+      padding:2px 9px;
+      border:1px solid rgba(200,169,109,0.3);
+      color:var(--gold); margin-left:8px; vertical-align:middle;
+    }
+
+    /* ─── DOC ITEMS ─── */
+    .doc-row {
+      display:flex; align-items:center; gap:16px;
+      padding:15px 20px;
+      border:1px solid var(--border);
+      margin-bottom:8px;
+      transition:all 0.25s; cursor:pointer;
+      text-decoration:none;
+    }
+    .doc-row:hover { border-color:rgba(200,169,109,0.3); background:var(--surface); }
+
+    .doc-icon-wrap {
+      width:34px; height:34px; flex-shrink:0;
+      background:var(--surface2);
+      display:flex; align-items:center; justify-content:center;
+    }
+    .doc-icon-wrap svg { width:15px; height:15px; color:var(--gold); }
+
+    .doc-label { font-size:13px; color:var(--text); }
+    .doc-sub { font-size:11px; color:var(--text-dim); margin-top:1px; }
+    .doc-arr { margin-left:auto; color:var(--text-dim); font-size:13px; }
+
+    /* ─── ACTIVITÉS ─── */
+    .activites-list { display:flex; flex-direction:column; gap:20px; }
+
+    .act-card {
+      background:var(--surface);
+      border:1px solid var(--border);
+      display:grid;
+      grid-template-columns:72px 1fr;
+      transition:all 0.3s;
+      overflow:hidden;
+    }
+    .act-card:hover { border-color:rgba(200,169,109,0.25); transform:translateX(3px); }
+
+    .act-num {
+      background:var(--surface2);
+      border-right:1px solid var(--border);
+      display:flex; align-items:flex-start; justify-content:center;
+      padding-top:32px;
+      font-family:'Cormorant Garamond',serif;
+      font-size:40px; font-weight:300;
+      color:var(--text-xdim); line-height:1;
+    }
+
+    .act-body { padding:28px 32px; }
+
+    .act-period {
+      font-family:'DM Mono',monospace;
+      font-size:9.5px; letter-spacing:0.15em; text-transform:uppercase;
+      color:var(--gold); margin-bottom:8px;
+    }
+
+    .act-title {
+      font-family:'Cormorant Garamond',serif;
+      font-size:21px; font-weight:400;
+      margin-bottom:10px;
+    }
+
+    .act-desc {
+      font-size:13.5px; color:var(--text-muted);
+      max-width:100%; margin-bottom:16px; line-height:1.8;
+    }
+
+    .tags { display:flex; flex-wrap:wrap; gap:6px; margin-top:14px; }
+
+    .tag {
+      font-family:'DM Mono',monospace;
+      font-size:9px; letter-spacing:0.08em; text-transform:uppercase;
+      padding:4px 11px;
+      background:var(--surface2); border:1px solid var(--border);
+      color:var(--text-dim);
+    }
+    .tag.gold {
+      border-color:rgba(200,169,109,0.35);
+      color:var(--gold);
+      background:rgba(200,169,109,0.05);
+    }
+
+    /* ─── VEILLE ─── */
+    .veille-intro-strip {
+      display:grid; grid-template-columns:1fr 1fr 1fr;
+      gap:1px; background:var(--border);
+      border:1px solid var(--border); margin-bottom:56px;
+    }
+    .stat-cell {
+      background:var(--surface); padding:24px 28px;
+    }
+    .stat-num {
+      font-family:'Cormorant Garamond',serif;
+      font-size:42px; font-weight:300; color:var(--gold);
+      line-height:1;
+    }
+    .stat-label {
+      font-size:12px; color:var(--text-muted); margin-top:6px;
+    }
+
+    .veille-timeline {
+      position:relative;
+      padding-left:32px;
+      border-left:1px solid var(--border);
+    }
+
+    .timeline-group { margin-bottom:52px; }
+
+    .timeline-period {
+      position:relative;
+      font-family:'Cormorant Garamond',serif;
+      font-size:28px; font-weight:300;
+      margin-bottom:28px; color:var(--text);
+    }
+    .timeline-period::before {
+      content:'';
+      position:absolute; left:-41px; top:50%;
+      transform:translateY(-50%);
+      width:10px; height:10px;
+      background:var(--gold); border-radius:50%;
+    }
+    .timeline-period em { font-style:italic; color:var(--gold); }
+
+    .veille-cards { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+
+    .veille-card {
+      background:var(--surface);
+      border:1px solid var(--border);
+      padding:24px 28px;
+      position:relative; overflow:hidden;
+      transition:all 0.3s; cursor:pointer;
+    }
+    .veille-card:hover {
+      border-color:rgba(200,169,109,0.25);
+      transform:translateY(-3px);
+      background:var(--surface2);
+    }
+    .veille-card::before {
+      content:'';
+      position:absolute; bottom:0; left:0; right:0; height:2px;
+      background:linear-gradient(90deg, var(--gold), transparent);
+      transform:scaleX(0); transform-origin:left;
+      transition:transform 0.4s;
+    }
+    .veille-card:hover::before { transform:scaleX(1); }
+
+    .veille-meta {
+      display:flex; align-items:center; gap:12px; margin-bottom:12px;
+    }
+    .veille-date {
+      font-family:'DM Mono',monospace;
+      font-size:9px; letter-spacing:0.16em; text-transform:uppercase;
+      color:var(--gold);
+    }
+    .veille-tag {
+      font-family:'DM Mono',monospace;
+      font-size:9px; letter-spacing:0.08em; text-transform:uppercase;
+      padding:2px 8px;
+      background:var(--gold-dim); color:var(--gold);
+    }
+
+    .veille-title {
+      font-family:'Cormorant Garamond',serif;
+      font-size:17px; font-weight:400;
+      line-height:1.35; margin-bottom:10px;
+    }
+
+    .veille-excerpt {
+      font-size:12.5px; color:var(--text-muted);
+      line-height:1.8;
+    }
+
+    .veille-key {
+      margin-top:14px; padding:10px 14px;
+      background:var(--bg2); border-left:2px solid var(--gold);
+      font-size:12px; color:var(--text-muted); font-style:italic;
+    }
+
+    .veille-src {
+      margin-top:14px;
+      font-family:'DM Mono',monospace;
+      font-size:9px; letter-spacing:0.08em;
+      color:var(--text-dim); text-transform:uppercase;
+    }
+
+    .outils-grid {
+      display:grid; grid-template-columns:1fr 1fr; gap:16px;
+      margin-top:48px;
+    }
+    .outil-card {
+      background:var(--surface);
+      border:1px solid var(--border);
+      padding:24px 28px;
+    }
+    .outil-name {
+      font-family:'Cormorant Garamond',serif;
+      font-size:18px; font-weight:400; margin-bottom:10px;
+    }
+    .outil-desc { font-size:13px; color:var(--text-muted); line-height:1.75; }
+
+    /* ─── TABLEAU SYNTHÈSE ─── */
+    .synthese-dl-bar {
+      display:flex; align-items:center; gap:20px;
+      padding:18px 24px;
+      background:var(--surface);
+      border:1px solid var(--border);
+      margin-bottom:40px;
+    }
+    .synthese-dl-bar svg { color:var(--gold); flex-shrink:0; }
+    .synthese-dl-bar .t { font-size:13px; color:var(--text); }
+    .synthese-dl-bar .s { font-size:11px; color:var(--text-dim); margin-top:2px; }
+    .synthese-dl-bar a {
+      margin-left:auto; font-size:10px; letter-spacing:0.12em; text-transform:uppercase;
+      color:var(--gold); text-decoration:none; white-space:nowrap;
+      transition:opacity 0.25s;
+    }
+    .synthese-dl-bar a:hover { opacity:0.7; }
+
+    .synthese-wrap { overflow-x:auto; }
+
+    table { width:100%; border-collapse:collapse; font-size:12.5px; }
+
+    thead tr { border-bottom:1px solid var(--gold); }
+
+    thead th {
+      padding:14px 16px; text-align:left;
+      font-family:'DM Mono',monospace;
+      font-weight:400; font-size:9px;
+      letter-spacing:0.12em; text-transform:uppercase;
+      color:var(--gold); white-space:nowrap;
+      vertical-align:bottom;
+    }
+    thead th:first-child { min-width:220px; }
+    thead th:nth-child(2) { min-width:100px; }
+
+    thead th .th-abbr { display:block; font-size:11px; margin-bottom:4px; }
+    thead th .th-full {
+      display:block; font-size:8px;
+      color:var(--text-dim); letter-spacing:0.06em;
+      white-space:normal; max-width:80px; line-height:1.4;
+      text-transform:none;
+    }
+
+    tbody tr {
+      border-bottom:1px solid var(--border);
+      transition:background 0.2s;
+    }
+    tbody tr:hover { background:var(--surface); }
+
+    tbody td {
+      padding:13px 16px;
+      color:var(--text-muted);
+      vertical-align:top;
+    }
+    tbody td:first-child { color:var(--text); font-size:13px; }
+    tbody td:nth-child(2) {
+      font-family:'DM Mono',monospace;
+      font-size:9px; letter-spacing:0.06em;
+      color:var(--text-dim); white-space:nowrap;
+    }
+
+    .chk { color:var(--gold); text-align:center; font-size:10px; }
+    .emp { color:var(--border2); text-align:center; font-size:10px; }
+
+    .type-badge {
+      display:inline-block;
+      font-family:'DM Mono',monospace;
+      font-size:8px; letter-spacing:0.06em;
+      padding:2px 8px; vertical-align:middle;
+      margin-left:8px;
+    }
+    .type-badge.lycee { background:rgba(100,180,150,0.1); color:#6ab894; }
+    .type-badge.stage { background:rgba(142,180,224,0.08); color:var(--gold); }
+    .type-badge.veille { background:rgba(142,180,224,0.04); color:var(--text-dim); }
+
+    .section-divider {
+      background:var(--surface2);
+    }
+    .section-divider td {
+      padding:8px 16px;
+      font-family:'DM Mono',monospace;
+      font-size:9px; letter-spacing:0.16em; text-transform:uppercase;
+      color:var(--gold);
+    }
+
+    /* ─── ATTESTATIONS ─── */
+    .attest-grid {
+      display:grid; grid-template-columns:1fr 1fr; gap:24px;
+    }
+
+    .attest-card {
+      background:var(--surface);
+      border:1px solid var(--border);
+      padding:36px;
+      position:relative; overflow:hidden;
+      display:flex; flex-direction:column; gap:18px;
+    }
+    .attest-card::after {
+      content:attr(data-year);
+      position:absolute; right:20px; top:12px;
+      font-family:'Cormorant Garamond',serif;
+      font-size:90px; font-weight:300;
+      color:rgba(255,255,255,0.025); line-height:1;
+      pointer-events:none;
+    }
+
+    .attest-yr {
+      font-family:'DM Mono',monospace;
+      font-size:9px; letter-spacing:0.2em; text-transform:uppercase;
+      color:var(--gold);
+    }
+    .attest-title {
+      font-family:'Cormorant Garamond',serif;
+      font-size:26px; font-weight:300;
+    }
+
+    .attest-info { display:flex; flex-direction:column; gap:8px; }
+    .attest-row { display:flex; gap:14px; font-size:13px; }
+    .attest-row .dl { color:var(--text-dim); min-width:72px; flex-shrink:0; }
+    .attest-row .dv { color:var(--text-muted); }
+
+    .attest-dl {
+      margin-top:auto; padding-top:20px;
+      border-top:1px solid var(--border);
+      display:inline-flex; align-items:center; gap:10px;
+      font-family:'DM Mono',monospace;
+      font-size:9px; letter-spacing:0.12em; text-transform:uppercase;
+      color:var(--gold); text-decoration:none; cursor:pointer;
+      transition:gap 0.3s;
+    }
+    .attest-dl:hover { gap:14px; }
+
+    /* ─── FOOTER ─── */
+    footer {
+      border-top:1px solid var(--border);
+      padding:28px 56px;
+      max-width:1160px; margin:0 auto;
+      display:flex; justify-content:space-between; align-items:center;
+    }
+
+    .footer-l {
+      font-family:'DM Mono',monospace;
+      font-size:9px; letter-spacing:0.14em; text-transform:uppercase;
+      color:var(--text-dim);
+    }
+    .footer-r {
+      font-family:'Cormorant Garamond',serif;
+      font-size:15px; color:var(--gold);
+    }
+
+    /* ─── ANIMATIONS ─── */
+    @keyframes fadeUp {
+      from { opacity:0; transform:translateY(22px); }
+      to   { opacity:1; transform:translateY(0); }
+    }
+    @keyframes fadeIn {
+      from { opacity:0; } to { opacity:1; }
+    }
+
+    .a1 { animation:fadeUp 0.7s ease 0.05s both; }
+    .a2 { animation:fadeUp 0.7s ease 0.18s both; }
+    .a3 { animation:fadeUp 0.7s ease 0.30s both; }
+    .a4 { animation:fadeUp 0.7s ease 0.42s both; }
+    .a5 { animation:fadeUp 0.7s ease 0.54s both; }
+    .a6 { animation:fadeUp 0.7s ease 0.66s both; }
+
+    /* ─── RESPONSIVE ─── */
+    @media (max-width:960px) {
+      nav { padding:0 24px; }
+      .nav-links { display:none; }
+      .home-inner { grid-template-columns:1fr; padding:0 24px; }
+      .photo-wrap { display:none; }
+      .inner { padding-left:24px; padding-right:24px; padding-top:calc(var(--nav-h)+40px); }
+      footer { padding-left:24px; padding-right:24px; }
+      .stage-grid { grid-template-columns:1fr; }
+      .veille-cards { grid-template-columns:1fr; }
+      .attest-grid { grid-template-columns:1fr; }
+      .act-card { grid-template-columns:1fr; }
+      .act-num { display:none; }
+      .outils-grid { grid-template-columns:1fr; }
+      .veille-intro-strip { grid-template-columns:1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div id="progress-bar"></div>
+
+  <canvas id="hero-canvas"></canvas>
+
+  <!-- ─── NAV ─── -->
+  <nav>
+    <div class="nav-logo" onclick="show('home')">Aymeric Millerioux--Tamain</div>
+    <ul class="nav-links">
+      <li><a href="#" onclick="return show('home')" id="nav-home" class="active">Accueil</a></li>
+      <li><a href="#" onclick="return show('stage')" id="nav-stage">Stage</a></li>
+      <li><a href="#" onclick="return show('activites')" id="nav-activites">Activités</a></li>
+      <li><a href="#" onclick="return show('veille')" id="nav-veille">Veille</a></li>
+      <li><a href="#" onclick="return show('synthese')" id="nav-synthese">Synthèse</a></li>
+      <li><a href="#" onclick="return show('attestations')" id="nav-attestations">Attestations</a></li>
+    </ul>
+    <div class="nav-right">
+      <a class="nav-cv-btn" href="documents/cv.pdf" target="_blank">↓ CV</a>
+    </div>
+  </nav>
+
+  <!-- ═══════════════════════════════════
+       ACCUEIL
+  ═══════════════════════════════════ -->
+  <section id="home" class="page active">
+    <div class="home-grid-deco"></div>
+    <div class="home-inner">
+
+      <div class="home-content">
+        <p class="eyebrow a1">BTS SIO · Épreuve E5 · Session 2026</p>
+
+        <h1 class="a2">Aymeric<br><em>Millerioux--Tamain</em></h1>
+
+        <div class="rule a3"></div>
+
+        <p class="home-tagline a3">
+          Étudiant en BTS SIO option SLAM, passionné par le développement web et applicatif. Maîtrise du PHP, Python, C#, HTML/CSS et SQL — avec une expérience concrète de mise en production en entreprise.
+        </p>
+
+        <div class="home-meta a4">
+          <div class="meta-item">
+            <div class="label">Formation</div>
+            <div class="val">BTS SIO — 2ème année</div>
+          </div>
+          <div class="meta-item">
+            <div class="label">Option</div>
+            <div class="val">SLAM</div>
+          </div>
+          <div class="meta-item">
+            <div class="label">Promotion</div>
+            <div class="val">2024 – 2026</div>
+          </div>
+          <div class="meta-item">
+            <div class="label">Établissement</div>
+            <div class="val">Raoul Follereau · Nevers</div>
+          </div>
+        </div>
+
+        <div class="home-actions a5">
+          <a class="btn-gold" href="documents/cv.pdf" target="_blank">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+            Télécharger le CV
+          </a>
+          <a class="btn-outline" href="mailto:aymericmita@gmail.com">
+            Me contacter →
+          </a>
+        </div>
+
+        <div class="skills-strip a6">
+          <span class="skill-pill">Python</span>
+          <span class="skill-pill">PHP</span>
+          <span class="skill-pill">C#</span>
+          <span class="skill-pill">HTML / CSS</span>
+          <span class="skill-pill">SQL / MySQL</span>
+          <span class="skill-pill">Git</span>
+          <span class="skill-pill">Linux</span>
+          <span class="skill-pill">WordPress</span>
+        </div>
+      </div>
+
+      <div class="photo-wrap a4">
+        <div class="photo-frame">
+          <div class="corner tl"></div>
+          <div class="corner br"></div>
+          <div class="photo-overlay"></div>
+          <!-- Remplacer par : <img src="photo.jpg" alt="Photo de profil"> -->
+          <div class="photo-placeholder">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1">
+              <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2M12 11a4 4 0 100-8 4 4 0 000 8z"/>
+            </svg>
+            <p>Votre photo</p>
+          </div>
+          <div class="photo-caption">BTS SIO · 2026</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════
+       STAGE
+  ═══════════════════════════════════ -->
+  <section id="stage" class="page">
+    <div class="inner">
+      <div class="section-head">
+        <p class="eyebrow">Situation professionnelle</p>
+        <h2>Stages en entreprise<br><em>2 années</em></h2>
+        <div class="rule"></div>
+        <p class="lead">Présentation de mes deux stages, des missions réalisées et des compétences mobilisées au sein d'environnements professionnels réels.</p>
+      </div>
+
+      <!-- ─── STAGE 2ème année ─── -->
+      <div style="margin-bottom:64px;">
+        <div class="eyebrow" style="margin-bottom:20px;">2ème année · 2025 / 2026</div>
+        <div class="stage-grid">
+          <div class="info-cell">
+            <div class="cell-label">Entreprise</div>
+            <div class="cell-value">Inore Groupe Impression</div>
+            <div class="cell-sub">Imprimerie · Varennes-Vauzelles (58)</div>
+          </div>
+          <div class="info-cell">
+            <div class="cell-label">Période</div>
+            <div class="cell-value">Du 19/01/2026 au 13/03/2026</div>
+            <div class="cell-sub">Durée : 8 semaines · Tutrice : Mme Valverde</div>
+          </div>
+          <div class="info-cell">
+            <div class="cell-label">Contexte &amp; rôle</div>
+            <div class="cell-value">Développeur web — mission complète</div>
+            <div class="cell-sub">PME d'impression (flyers, affiches, signalétique). Pas de service informatique internalisé. Mission confiée en autonomie totale : analyse, conception, développement et mise en production.</div>
+          </div>
+          <div class="info-cell">
+            <div class="cell-label">Environnement technique</div>
+            <div class="cell-value">PHP · MySQL · WordPress · Git</div>
+            <div class="cell-sub">VS Code, Laragon, InfinityFree, LocalWP, FPDF, Tesseract OCR, EasyOCR, Google Workspace</div>
+          </div>
+        </div>
+
+        <div class="block-title">Missions réalisées</div>
+        <div class="mission-block">
+          Mission principale : développement de <strong style="color:var(--gold);font-style:normal;">ImpriFrais</strong>, une application web interne de gestion des frais professionnels. Les employés soumettaient leurs justificatifs de manière informelle (papier ou e-mail), rendant le suivi chronophage pour la comptable. J'ai conçu et mis en production une application PHP/MySQL permettant à chaque employé de saisir ses frais, joindre ses justificatifs numérisés, et à la comptable d'en visualiser et d'en exporter l'ensemble. L'application intègre une reconnaissance OCR automatique des tickets de caisse pour pré-remplir les formulaires, une génération de PDF via FPDF, un système de thèmes visuels (11 thèmes), et un responsive design complet pour une utilisation mobile. En parallèle, intervention sur le site web vitrine WordPress de l'entreprise : amélioration du responsive design, révision des breakpoints CSS, et corrections diverses.
+        </div>
+
+        <div class="block-title">Compétences mobilisées</div>
+        <div class="comp-box">
+          <ul class="comp-list">
+            <li>
+              Développement d'une application web PHP/MySQL de A à Z — architecture MVC allégée, authentification sécurisée avec hachage des mots de passe, CRUD complet.
+              <span class="ctag">B1</span>
+            </li>
+            <li>
+              Intégration d'OCR (Tesseract + EasyOCR) pour la reconnaissance automatique de tickets de caisse, avec post-traitement par expressions régulières.
+              <span class="ctag">B1</span>
+            </li>
+            <li>
+              Génération dynamique de PDF (FPDF) incluant justificatifs images, gestion multi-formats, sauts de page automatiques.
+              <span class="ctag">B1</span>
+            </li>
+            <li>
+              Déploiement en production sur hébergement externe (InfinityFree), gestion des chemins serveur, versioning avec Git.
+              <span class="ctag">B2</span>
+            </li>
+            <li>
+              Maintenance et amélioration du site WordPress vitrine : responsive design, breakpoints CSS, respect de la charte graphique.
+              <span class="ctag">B2</span>
+            </li>
+            <li>
+              Interventions ponctuelles : reconfiguration d'imprimantes réseau, résolution de problèmes Java, correction Google Agenda et Google Groups.
+              <span class="ctag">B3</span>
+            </li>
+          </ul>
+        </div>
+
+        <div class="block-title">Documents justificatifs</div>
+        <a class="doc-row" href="documents/rapport-stage.pdf" target="_blank">
+          <div class="doc-icon-wrap">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+          </div>
+          <div>
+            <div class="doc-label">Rapport de stage — 2ème année</div>
+            <div class="doc-sub">Inore Groupe Impression · Janvier – Mars 2026</div>
+          </div>
+          <span class="doc-arr">→</span>
+        </a>
+        <a class="doc-row" href="documents/attestation-stage-2.pdf" target="_blank">
+          <div class="doc-icon-wrap">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+          </div>
+          <div>
+            <div class="doc-label">Attestation de stage — 2ème année</div>
+            <div class="doc-sub">Signée par Mme Valverde · 8 semaines</div>
+          </div>
+          <span class="doc-arr">→</span>
+        </a>
+      </div>
+
+      <!-- ─── STAGE 1ère année ─── -->
+      <div>
+        <div class="eyebrow" style="margin-bottom:20px;">1ère année · 2024 / 2025</div>
+        <div class="stage-grid">
+          <div class="info-cell">
+            <div class="cell-label">Entreprise</div>
+            <div class="cell-value">Fédération des Centres Sociaux de la Nièvre</div>
+            <div class="cell-sub">Association · Nevers (58)</div>
+          </div>
+          <div class="info-cell">
+            <div class="cell-label">Période</div>
+            <div class="cell-value">Du 02/06/2025 au 04/07/2025</div>
+            <div class="cell-sub">Durée : 5 semaines</div>
+          </div>
+          <div class="info-cell">
+            <div class="cell-label">Contexte &amp; rôle</div>
+            <div class="cell-value">Stage informatique — 1ère année BTS SIO</div>
+            <div class="cell-sub">Stage de découverte du milieu professionnel, réalisé au sein d'une fédération associative du secteur social.</div>
+          </div>
+          <div class="info-cell">
+            <div class="cell-label">Adresse</div>
+            <div class="cell-value">2 Bd Jacques Duclos</div>
+            <div class="cell-sub">58000 Nevers</div>
+          </div>
+        </div>
+
+        <div class="block-title">Documents justificatifs</div>
+        <a class="doc-row" href="documents/attestation-stage-1.pdf" target="_blank">
+          <div class="doc-icon-wrap">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+          </div>
+          <div>
+            <div class="doc-label">Attestation de stage — 1ère année</div>
+            <div class="doc-sub">Fédération des Centres Sociaux de la Nièvre · Juin – Juillet 2025</div>
+          </div>
+          <span class="doc-arr">→</span>
+        </a>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════
+       ACTIVITÉS LYCÉE
+  ═══════════════════════════════════ -->
+  <section id="activites" class="page">
+    <div class="inner">
+      <div class="section-head">
+        <p class="eyebrow">Situations professionnelles</p>
+        <h2>Activités réalisées<br><em>au lycée</em></h2>
+        <div class="rule"></div>
+        <p class="lead">Ensemble des projets et activités menés dans le cadre de la formation, couvrant les blocs de compétences du référentiel BTS SIO.</p>
+      </div>
+
+      <div class="activites-list">
+
+        <div class="act-card">
+          <div class="act-num">01</div>
+          <div class="act-body">
+            <div class="act-period">2025 → 2026 · Lycée Raoul Follereau, Nevers</div>
+            <div class="act-title">ICGO — Gestion des formations</div>
+            <p class="act-desc">
+              Développement d'une application client-serveur de gestion des stages pour l'Institut Claude Gaston Octave (I-CGO), organisme de formation fictif. L'application permet de gérer les sessions de formation, les inscriptions de stagiaires, les formateurs, les modules, les compétences et les agences. Architecture en couches (DAO, métier, présentation) avec connexion sécurisée. Réalisation individuelle.
+            </p>
+            <div class="tags">
+              <span class="tag gold">Concevoir &amp; développer</span>
+              <span class="tag gold">Gérer les données</span>
+              <span class="tag gold">Maintenance</span>
+              <span class="tag">C#</span>
+              <span class="tag">SQL Server</span>
+              <span class="tag">Visual Studio 2022</span>
+              <span class="tag">Architecture en couches</span>
+            </div>
+            <div style="margin-top:18px;">
+              <a class="doc-row" href="documents/fiche-situation-icgo.pdf" target="_blank" style="padding:11px 16px;">
+                <div class="doc-icon-wrap" style="width:28px;height:28px;">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                </div>
+                <div>
+                  <div class="doc-label" style="font-size:12px;">Fiche E6 — Réalisation N°1</div>
+                  <div class="doc-sub">BTS SIO · Session 2026</div>
+                </div>
+                <span class="doc-arr">→</span>
+              </a>
+              <a class="doc-row" href="documents/doc-tech-icgo.pdf" target="_blank" style="padding:11px 16px; margin-top:6px;">
+                <div class="doc-icon-wrap" style="width:28px;height:28px;">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+                </div>
+                <div>
+                  <div class="doc-label" style="font-size:12px;">Documentation technique — ICGO</div>
+                  <div class="doc-sub">Architecture · Base de données · Interfaces</div>
+                </div>
+                <span class="doc-arr">→</span>
+              </a>
+            </div>
+          </div>
+        </div>
+
+        <div class="act-card">
+          <div class="act-num">02</div>
+          <div class="act-body">
+            <div class="act-period">2025 → 2026 · Lycée Raoul Follereau, Nevers</div>
+            <div class="act-title">GSB — Gestion des comptes rendus</div>
+            <p class="act-desc">
+              Développement d'une application web MVC de gestion des comptes rendus de visites médicales pour le laboratoire fictif Galaxy Swiss Bourdin (GSB). Trois profils utilisateurs distincts (visiteur, délégué, responsable) avec authentification sécurisée. Fonctionnalités : ajout et modification de comptes rendus (médicaments présentés, échantillons offerts, documentation remise), consultation par période, région, visiteur et secteur, statistiques pour délégués et responsables. Réalisation individuelle.
+            </p>
+            <div class="tags">
+              <span class="tag gold">Concevoir &amp; développer</span>
+              <span class="tag gold">Gérer les données</span>
+              <span class="tag gold">Maintenance</span>
+              <span class="tag">PHP</span>
+              <span class="tag">MySQL</span>
+              <span class="tag">MVC</span>
+              <span class="tag">HTML / CSS</span>
+              <span class="tag">Laragon</span>
+            </div>
+            <div style="margin-top:18px;">
+              <a class="doc-row" href="documents/fiche-situation-gsb.pdf" target="_blank" style="padding:11px 16px;">
+                <div class="doc-icon-wrap" style="width:28px;height:28px;">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                </div>
+                <div>
+                  <div class="doc-label" style="font-size:12px;">Fiche E6 — Réalisation N°2</div>
+                  <div class="doc-sub">BTS SIO · Session 2026</div>
+                </div>
+                <span class="doc-arr">→</span>
+              </a>
+              <a class="doc-row" href="documents/doc-tech-gsb.pdf" target="_blank" style="padding:11px 16px; margin-top:6px;">
+                <div class="doc-icon-wrap" style="width:28px;height:28px;">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+                </div>
+                <div>
+                  <div class="doc-label" style="font-size:12px;">Documentation technique — GSB</div>
+                  <div class="doc-sub">MVC · Base de données · Authentification</div>
+                </div>
+                <span class="doc-arr">→</span>
+              </a>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════
+       VEILLE INFORMATIONNELLE
+  ═══════════════════════════════════ -->
+  <section id="veille" class="page">
+    <div class="inner">
+      <div class="section-head">
+        <p class="eyebrow">Développement professionnel · B6</p>
+        <h2>Veille informationnelle<br><em>L'IA dans le domaine médical</em></h2>
+        <div class="rule"></div>
+        <p class="lead">Suivi des évolutions de l'intelligence artificielle appliquée à la santé — avancées cliniques, enjeux réglementaires et perspectives éthiques. Période couverte : octobre 2025 – avril 2026.</p>
+      </div>
+
+      <div class="veille-intro-strip">
+        <div class="stat-cell">
+          <div class="stat-num">7</div>
+          <div class="stat-label">Mois de veille active</div>
+        </div>
+        <div class="stat-cell">
+          <div class="stat-num">1 450</div>
+          <div class="stat-label">DM IA approuvés par la FDA (avril 2026)</div>
+        </div>
+        <div class="stat-cell">
+          <div class="stat-num">74 %</div>
+          <div class="stat-label">des pays UE utilisent l'IA pour le diagnostic (OMS)</div>
+        </div>
+      </div>
+
+      <!-- Timeline -->
+      <div class="veille-timeline">
+
+        <!-- PARTIE I -->
+        <div class="timeline-group">
+          <div class="timeline-period">Oct. — Déc. 2025 · <em>Cadrage réglementaire</em></div>
+
+          <div class="veille-cards">
+
+            <div class="veille-card">
+              <div class="veille-meta">
+                <span class="veille-date">Oct. 2025</span>
+                <span class="veille-tag">Réglementation</span>
+              </div>
+              <div class="veille-title">Lancement de COMPASS-AI par la Commission européenne</div>
+              <p class="veille-excerpt">
+                Le 21 octobre, la Commission européenne lance une communauté multidisciplinaire pour encadrer le déploiement sûr de l'IA en pratique clinique. Parallèlement, la FDA recense 873 dispositifs médicaux IA approuvés aux États-Unis.
+              </p>
+              <div class="veille-key">
+                Chiffre clé : ~115 nouveaux dispositifs médicaux IA approuvés par la FDA en 2025.
+              </div>
+              <div class="veille-src">Source — ANFH · IntuitionLabs</div>
+            </div>
+
+            <div class="veille-card">
+              <div class="veille-meta">
+                <span class="veille-date">Nov. 2025</span>
+                <span class="veille-tag">Stratégie nationale</span>
+              </div>
+              <div class="veille-title">Stratégie nationale « IA et données de santé 2025-2028 »</div>
+              <p class="veille-excerpt">
+                Lors de la 4e Journée nationale de l'innovation en santé numérique, le ministère de la Santé dévoile ses quatre priorités : clarifier le cadre réglementaire, évaluer rigoureusement les outils, soutenir l'innovation et former les professionnels de santé.
+              </p>
+              <div class="veille-src">Source — Health Data Hub · Ministère de la Santé</div>
+            </div>
+
+            <div class="veille-card">
+              <div class="veille-meta">
+                <span class="veille-date">Nov. 2025</span>
+                <span class="veille-tag">Éthique & biais</span>
+              </div>
+              <div class="veille-title">Limites éthiques et techniques des IA médicales</div>
+              <p class="veille-excerpt">
+                Une série d'articles scientifiques pointe trois problèmes récurrents : les biais algorithmiques (précision moindre sur certains groupes ethniques), la « boîte noire », et les questions de responsabilité juridique en cas d'erreur (médecin, fabricant ou établissement ?). La HAS a publié de nouvelles directives en avril 2025, mais des zones grises demeurent.
+              </p>
+              <div class="veille-src">Source — acmcorpo.fr · campusmedx.fr</div>
+            </div>
+
+            <div class="veille-card">
+              <div class="veille-meta">
+                <span class="veille-date">Nov. 2025</span>
+                <span class="veille-tag">Cardiologie</span>
+              </div>
+              <div class="veille-title">EchoNext surpasse les cardiologues expérimentés</div>
+              <p class="veille-excerpt">
+                L'IA EchoNext démontre dans une évaluation contrôlée qu'elle diagnostique les cardiopathies structurelles avec des performances supérieures à celles de spécialistes humains, y compris sur des patients sans antécédent d'imagerie. Parallèlement, Eko Low EF AI reçoit une validation pour détecter en quelques secondes une faible fraction d'éjection — marqueur précoce d'insuffisance cardiaque.
+              </p>
+              <div class="veille-key">
+                Performances constantes quel que soit le groupe ethnique ou le contexte clinique.
+              </div>
+              <div class="veille-src">Source — Wikipedia · Eko Health</div>
+            </div>
+
+            <div class="veille-card">
+              <div class="veille-meta">
+                <span class="veille-date">Déc. 2025</span>
+                <span class="veille-tag">AI Act</span>
+              </div>
+              <div class="veille-title">L'AI Act classe les IA médicales « à haut risque »</div>
+              <p class="veille-excerpt">
+                Les IA médicales sont officiellement catégorisées comme systèmes à haut risque au sens du Règlement européen sur l'IA. Cela impose une documentation technique exhaustive, la transparence envers les utilisateurs et une surveillance post-commercialisation renforcée.
+              </p>
+              <div class="veille-key">
+                AI Act + EHDS + Stratégie 2025-2028 forment un ensemble réglementaire cohérent.
+              </div>
+              <div class="veille-src">Source — Usine Digitale · G_NIUS / ANS</div>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- PARTIE II -->
+        <div class="timeline-group">
+          <div class="timeline-period">Jan. — Fév. 2026 · <em>Déploiements terrain</em></div>
+
+          <div class="veille-cards">
+
+            <div class="veille-card">
+              <div class="veille-meta">
+                <span class="veille-date">Jan. 2026</span>
+                <span class="veille-tag">Première mondiale</span>
+              </div>
+              <div class="veille-title">L'Utah autorise la prescription automatisée par IA</div>
+              <p class="veille-excerpt">
+                Le 6 janvier, l'État américain de l'Utah autorise Doctronic à utiliser l'IA pour renouveler des prescriptions de routine dans certaines maladies chroniques — une première mondiale. En France, l'Assurance maladie lance une expérimentation sur l'interprétation des ECG par IA.
+              </p>
+              <div class="veille-key">
+                88 % des professionnels de santé prévoient d'intensifier l'usage de l'IA dans les deux prochaines années.
+              </div>
+              <div class="veille-src">Source — CGM.com · Futura Sciences · medtechfrance.fr</div>
+            </div>
+
+            <div class="veille-card">
+              <div class="veille-meta">
+                <span class="veille-date">Fév. 2026</span>
+                <span class="veille-tag">Recherche</span>
+              </div>
+              <div class="veille-title">Nature Medicine : les IA en conditions réelles</div>
+              <p class="veille-excerpt">
+                Le 9 février, Nature Medicine publie une étude britannico-américaine comparant trois IA médicales avec de vrais patients. Résultat : les IA performantes en test théorique peuvent échouer en conditions réelles — les patients ne savent pas quelles informations fournir et les applications n'ont pas été conçues pour cette imperfection naturelle. Conclusion : aucune « prête pour un déploiement dans les soins directs ».
+              </p>
+              <div class="veille-key">
+                Les tâches administratives mobilisent 25–35 % du temps des médecins (DREES). L'IA générative commence à absorber cette charge.
+              </div>
+              <div class="veille-src">Source — Nature Medicine · espace-ethique-azureen.fr</div>
+            </div>
+
+            <div class="veille-card">
+              <div class="veille-meta">
+                <span class="veille-date">Fév. 2026</span>
+                <span class="veille-tag">Pharmacologie</span>
+              </div>
+              <div class="veille-title">Insilico Medicine : de 6 ans à 30 mois pour découvrir un médicament</div>
+              <p class="veille-excerpt">
+                La société Insilico Medicine démontre qu'elle peut passer de la simulation informatique aux essais cliniques en seulement 30 mois contre 6 ans habituellement, grâce à l'IA appliquée à la découverte de médicaments contre la fibrose pulmonaire. La revue Médecine &amp; Droit publie parallèlement un article sur les enjeux juridiques de l'IA responsable en santé : transparence, biais, consentement éclairé et responsabilité médicale.
+              </p>
+              <div class="veille-key">
+                Réduction du délai de découverte : de 6 ans à 30 mois grâce à l'IA.
+              </div>
+              <div class="veille-src">Source — Sermo.com · galeon.care · Médecine &amp; Droit</div>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- PARTIE III -->
+        <div class="timeline-group">
+          <div class="timeline-period">Mars — Avr. 2026 · <em>Accélération institutionnelle</em></div>
+
+          <div class="veille-cards">
+
+            <div class="veille-card">
+              <div class="veille-meta">
+                <span class="veille-date">Mars 2026</span>
+                <span class="veille-tag">Commission européenne</span>
+              </div>
+              <div class="veille-title">1 450 DM IA approuvés + étude européenne</div>
+              <p class="veille-excerpt">
+                Le total de dispositifs médicaux IA approuvés par la FDA atteint 1 450 — presque le double des 873 comptabilisés en juillet 2025. Le 17 mars, la Commission européenne publie une étude sur l'IA dans les 27 systèmes de santé européens, révélant une adoption très inégale.
+              </p>
+              <div class="veille-key">
+                Approche émergente : l'apprentissage fédéré (l'algorithme va vers les données) devient la norme pour la souveraineté des établissements.
+              </div>
+              <div class="veille-src">Source — UNIGE · Commission européenne (17 mars 2026)</div>
+            </div>
+
+            <div class="veille-card">
+              <div class="veille-meta">
+                <span class="veille-date">7 Avr. 2026</span>
+                <span class="veille-tag">Cardiologie</span>
+              </div>
+              <div class="veille-title">Rapport européen : IA dans les soins cardiovasculaires</div>
+              <p class="veille-excerpt">
+                La Commission européenne publie un rapport dédié à l'IA dans les soins cardiovasculaires (« De la promesse à la pratique »), recensant les applications concrètes dans la prévention, le diagnostic et la réadaptation des maladies cardiovasculaires — première cause de mortalité en Europe.
+              </p>
+              <div class="veille-src">Source — Commission européenne (7 avr. 2026)</div>
+            </div>
+
+            <div class="veille-card">
+              <div class="veille-meta">
+                <span class="veille-date">20–21 Avr. 2026</span>
+                <span class="veille-tag">OMS + 63,2 M€</span>
+              </div>
+              <div class="veille-title">L'OMS dresse le premier état des lieux mondial + 63,2 M€ investis</div>
+              <p class="veille-excerpt">
+                Le 20 avril, l'OMS/Europe publie son premier état des lieux de l'IA dans les soins de santé de l'UE : 74 % des pays utilisent l'IA pour le diagnostic, 63 % emploient des chatbots pour impliquer les patients — mais un retard alarmant dans la formation du personnel soignant est souligné. Le lendemain, la Commission annonce 63,2 M€ pour l'innovation IA en santé, ciblant notamment le dépistage précoce du cancer via la plateforme Cancer Image Europe (60 millions d'images d'ici fin 2026) et l'initiative 1+Million Génomes.
+              </p>
+              <div class="veille-key">
+                74 % des États UE utilisent l'IA pour le diagnostic · 63,2 M€ investis par la Commission européenne.
+              </div>
+              <div class="veille-src">Source — OMS/Europe · Commission européenne (21 avr. 2026)</div>
+            </div>
+
+          </div>
+        </div>
+
+      </div><!-- end timeline -->
+
+      <!-- Outils de veille -->
+      <div style="margin-top:64px;">
+        <div class="block-title">Outils &amp; méthodes de veille</div>
+        <div class="outils-grid">
+          <div class="outil-card">
+            <div class="outil-name">Google Alerts</div>
+            <div class="outil-desc">Colonne vertébrale automatique de la veille. Alertes configurées sur « IA santé », « AI healthcare », « AI Act médical ». Synthèse quotidienne par e-mail.</div>
+          </div>
+          <div class="outil-card">
+            <div class="outil-name">Feedly</div>
+            <div class="outil-desc">Agrégateur RSS centralisant les flux de Health Data Hub, Agence du Numérique en Santé, STAT News, buzz-esante.fr. Consultation hebdomadaire pour trier les articles de fond.</div>
+          </div>
+          <div class="outil-card">
+            <div class="outil-name">Arxiv &amp; Commission européenne</div>
+            <div class="outil-desc">Consultation manuelle des prépublications académiques et des rapports institutionnels. Plus chronophage, mais source d'information primaire à haute valeur.</div>
+          </div>
+          <div class="outil-card">
+            <div class="outil-name">LinkedIn</div>
+            <div class="outil-desc">Suivi du Health Data Hub, de l'Agence du Numérique en Santé, de Galeon et de chercheurs en IA médicale. Valeur ajoutée : débats d'experts et réactivité aux actualités.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Conclusion -->
+      <div style="margin-top:64px; border:1px solid var(--border2); padding:32px 36px; background:var(--surface);">
+        <div class="block-title" style="margin-bottom:20px;">Bilan de veille — 3 leçons</div>
+        <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:20px;">
+          <div>
+            <div style="font-family:'DM Mono',monospace;font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--gold);margin-bottom:10px;">01 — Rythme</div>
+            <p style="font-size:13.5px;color:var(--text-muted);line-height:1.7;">L'innovation est non-linéaire et s'accélère : en moins d'un an, le nombre de dispositifs médicaux IA approuvés par la FDA est passé de 873 à 1 450.</p>
+          </div>
+          <div>
+            <div style="font-family:'DM Mono',monospace;font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--gold);margin-bottom:10px;">02 — Terrain</div>
+            <p style="font-size:13.5px;color:var(--text-muted);line-height:1.7;">Le déploiement réel reste plus difficile que la technologie : une IA performante en test peut échouer face à de vrais patients (étude Nature Medicine, fév. 2026).</p>
+          </div>
+          <div>
+            <div style="font-family:'DM Mono',monospace;font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--gold);margin-bottom:10px;">03 — Règlement</div>
+            <p style="font-size:13.5px;color:var(--text-muted);line-height:1.7;">Le cadre réglementaire se structure mais avec des retards : l'annexe I de l'AI Act est repoussée à 2028, laissant des angles morts préoccupants.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Lien document veille -->
+      <div style="margin-top:40px;">
+        <a class="doc-row" href="documents/veille-ia-medicale.docx" target="_blank">
+          <div class="doc-icon-wrap">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+          </div>
+          <div>
+            <div class="doc-label">Compte-rendu complet de veille — Document Word</div>
+            <div class="doc-sub">BTS SIO · Veille Informationnelle · L'IA dans le domaine médical · Oct. 2025 – Avr. 2026</div>
+          </div>
+          <span class="doc-arr">↓</span>
+        </a>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════
+       TABLEAU DE SYNTHÈSE
+  ═══════════════════════════════════ -->
+  <section id="synthese" class="page">
+    <div class="inner">
+      <div class="section-head">
+        <p class="eyebrow">Référentiel BTS SIO · Épreuve E5</p>
+        <h2>Tableau de<br><em>synthèse</em></h2>
+        <div class="rule"></div>
+        <p class="lead">Récapitulatif de l'ensemble des réalisations professionnelles et des compétences mobilisées, conformément au référentiel de l'épreuve E5.</p>
+      </div>
+
+      <div class="synthese-dl-bar">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+        <div>
+          <div class="t">Télécharger le tableau de synthèse officiel</div>
+          <div class="s">Fichier Excel fourni par l'établissement · Annexe 8-1 · BTS SIO Session 2026</div>
+        </div>
+        <a href="documents/tableau-synthese-e5.xlsx" download>
+          Télécharger (.xlsx) →
+        </a>
+      </div>
+
+      <div class="synthese-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th rowspan="2">Réalisation / Situation professionnelle</th>
+              <th rowspan="2">Période</th>
+              <th>
+                <span class="th-abbr">B1</span>
+                <span class="th-full">Gérer le patrimoine informatique</span>
+              </th>
+              <th>
+                <span class="th-abbr">B2</span>
+                <span class="th-full">Répondre aux incidents &amp; demandes</span>
+              </th>
+              <th>
+                <span class="th-abbr">B3</span>
+                <span class="th-full">Développer la présence en ligne</span>
+              </th>
+              <th>
+                <span class="th-abbr">B4</span>
+                <span class="th-full">Travailler en mode projet</span>
+              </th>
+              <th>
+                <span class="th-abbr">B5</span>
+                <span class="th-full">Mettre à disposition un service informatique</span>
+              </th>
+              <th>
+                <span class="th-abbr">B6</span>
+                <span class="th-full">Organiser son développement professionnel</span>
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+
+            <!-- Formation lycée -->
+            <tr class="section-divider">
+              <td colspan="8">Réalisations en cours de formation</td>
+            </tr>
+
+            <tr>
+              <td>
+                ICGO — Gestion des formations
+                <span class="type-badge lycee">Lycée</span>
+              </td>
+              <td>09/24 → 11/24</td>
+              <td class="chk">◆</td>
+              <td class="chk">◆</td>
+              <td class="emp">—</td>
+              <td class="emp">—</td>
+              <td class="emp">—</td>
+              <td class="emp">—</td>
+            </tr>
+
+            <tr>
+              <td>
+                GSB — Gestion des comptes rendus
+                <span class="type-badge lycee">Lycée</span>
+              </td>
+              <td>11/24 → 01/25</td>
+              <td class="emp">—</td>
+              <td class="emp">—</td>
+              <td class="chk">◆</td>
+              <td class="chk">◆</td>
+              <td class="emp">—</td>
+              <td class="emp">—</td>
+            </tr>
+
+            <tr>
+              <td>
+                Activité lycée 3
+                <span class="type-badge lycee">Lycée</span>
+              </td>
+              <td>02/25 → 04/25</td>
+              <td class="emp">—</td>
+              <td class="emp">—</td>
+              <td class="emp">—</td>
+              <td class="chk">◆</td>
+              <td class="chk">◆</td>
+              <td class="emp">—</td>
+            </tr>
+
+            <tr>
+              <td>
+                Veille informationnelle — IA médicale
+                <span class="type-badge veille">Veille</span>
+              </td>
+              <td>10/25 → 04/26</td>
+              <td class="emp">—</td>
+              <td class="emp">—</td>
+              <td class="emp">—</td>
+              <td class="emp">—</td>
+              <td class="emp">—</td>
+              <td class="chk">◆</td>
+            </tr>
+
+            <!-- Stage 1ère année -->
+            <tr class="section-divider">
+              <td colspan="8">Réalisations en milieu professionnel — 1ère année</td>
+            </tr>
+
+            <tr>
+              <td>
+                Stage entreprise 1ère année
+                <span class="type-badge stage">Stage</span>
+              </td>
+              <td>06/25 → 07/25</td>
+              <td class="chk">◆</td>
+              <td class="chk">◆</td>
+              <td class="chk">◆</td>
+              <td class="emp">—</td>
+              <td class="chk">◆</td>
+              <td class="emp">—</td>
+            </tr>
+
+            <!-- Stage 2ème année -->
+            <tr class="section-divider">
+              <td colspan="8">Réalisations en milieu professionnel — 2ème année</td>
+            </tr>
+
+            <tr>
+              <td>
+                Stage entreprise 2ème année
+                <span class="type-badge stage">Stage</span>
+              </td>
+              <td>01/26 → 03/26</td>
+              <td class="emp">—</td>
+              <td class="chk">◆</td>
+              <td class="emp">—</td>
+              <td class="chk">◆</td>
+              <td class="chk">◆</td>
+              <td class="emp">—</td>
+            </tr>
+
+          </tbody>
+        </table>
+      </div>
+
+      <div style="margin-top:24px; padding:14px 20px; background:var(--surface); border:1px solid var(--border); font-size:12px; color:var(--text-dim);">
+        <strong style="color:var(--gold);">◆</strong> = Compétence mobilisée &emsp;
+        <span style="color:#6ab894">Lycée</span> = Réalisation en formation &emsp;
+        <span style="color:var(--gold)">Stage</span> = Milieu professionnel &emsp;
+        Veille = Développement professionnel (B6)
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════
+       ATTESTATIONS
+  ═══════════════════════════════════ -->
+  <section id="attestations" class="page">
+    <div class="inner">
+      <div class="section-head">
+        <p class="eyebrow">Documents officiels</p>
+        <h2>Attestations<br><em>de stage</em></h2>
+        <div class="rule"></div>
+        <p class="lead">Attestations de stage des deux années de formation BTS SIO, conformément aux exigences de l'épreuve E5.</p>
+      </div>
+
+      <div class="attest-grid">
+        <div class="attest-card" data-year="1">
+          <div class="attest-yr">1ère année · 2024 / 2025</div>
+          <div class="attest-title">Attestation de stage</div>
+          <div class="attest-info">
+            <div class="attest-row">
+              <span class="dl">Entreprise</span>
+              <span class="dv">Fédération des centres sociaux de la Nièvre</span>
+            </div>
+            <div class="attest-row">
+              <span class="dl">Période</span>
+              <span class="dv">Du 02/06 au 04/07/2025</span>
+            </div>
+            <div class="attest-row">
+              <span class="dl">Tuteur</span>
+              <span class="dv">Mme Inconnu</span>
+            </div>
+            <div class="attest-row">
+              <span class="dl">Durée</span>
+              <span class="dv">5 semaines</span>
+            </div>
+          </div>
+          <a class="attest-dl" href="documents/attestation-stage-1.pdf" target="_blank">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+            Télécharger l'attestation
+          </a>
+        </div>
+
+        <div class="attest-card" data-year="2">
+          <div class="attest-yr">2ème année · 2025 / 2026</div>
+          <div class="attest-title">Attestation de stage</div>
+          <div class="attest-info">
+            <div class="attest-row">
+              <span class="dl">Entreprise</span>
+              <span class="dv">Inore Groupe Impression</span>
+            </div>
+            <div class="attest-row">
+              <span class="dl">Période</span>
+              <span class="dv">Du 19/01 au 13/03/2026</span>
+            </div>
+            <div class="attest-row">
+              <span class="dl">Tuteur</span>
+              <span class="dv">Mme Valverde</span>
+            </div>
+            <div class="attest-row">
+              <span class="dl">Durée</span>
+              <span class="dv">8 semaines</span>
+            </div>
+          </div>
+          <a class="attest-dl" href="documents/attestation-stage-2.pdf" target="_blank">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+            Télécharger l'attestation
+          </a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─── FOOTER ─── -->
+  <footer>
+    <div class="footer-l">Portfolio BTS SIO · Épreuve E5 · Session 2026</div>
+    <div class="footer-r">Aymeric Millerioux--Tamain</div>
+  </footer>
+
+  <script>
+    const PAGES = ['home','stage','activites','veille','synthese','attestations'];
+    let current = 'home';
+
+    function show(id) {
+      // Hide all
+      PAGES.forEach(p => {
+        const el = document.getElementById(p);
+        const nav = document.getElementById('nav-' + p);
+        if (el) {
+          el.classList.remove('visible');
+          el.classList.remove('active');
+          el.style.display = 'none';
+        }
+        if (nav) nav.classList.remove('active');
+      });
+
+      const target = document.getElementById(id);
+      const navTarget = document.getElementById('nav-' + id);
+
+      if (target) {
+        target.style.display = id === 'home' ? 'flex' : 'block';
+        target.classList.add('active');
+        if (navTarget) navTarget.classList.add('active');
+
+        // Trigger transition
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            target.classList.add('visible');
+          });
+        });
+
+        window.scrollTo({ top: 0, behavior: 'instant' });
+        current = id;
+      }
+
+      return false;
+    }
+
+    // Progress bar on scroll
+    window.addEventListener('scroll', () => {
+      const scrolled = window.scrollY;
+      const total = document.documentElement.scrollHeight - window.innerHeight;
+      const pct = total > 0 ? (scrolled / total) * 100 : 0;
+      document.getElementById('progress-bar').style.width = pct + '%';
+    });
+
+    // Init
+    document.addEventListener('DOMContentLoaded', () => show('home'));
+  </script>
+
+<!-- ─── REAL PLANETARIUM (Hipparcos star catalog) ─── -->
+  <script>
+  (function() {
+    const canvas = document.getElementById('hero-canvas');
+    const renderer = new THREE.WebGLRenderer({ canvas, antialias:true, alpha:true });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setClearColor(0x000000, 0);
+
+    const scene  = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(72, 1, 0.1, 2500);
+    camera.position.set(0, 0, 0);
+
+    function resize() {
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+    }
+    window.addEventListener('resize', resize);
+    resize();
+
+    // ── Celestial sphere group (observer at 48°N, Paris) ──
+    const R   = 500;
+    const LAT = 48 * Math.PI / 180;
+    const sky = new THREE.Group();
+    scene.add(sky);
+    // Tilt so the celestial pole sits at 48° elevation above north horizon
+    sky.rotation.x = -(Math.PI / 2 - LAT);   // -42°
+    // Face the winter sky (Orion/south direction)
+    sky.rotation.y = Math.PI * 1.05;
+
+    // ── Convert RA (hours) / Dec (degrees) → 3D on sphere ──
+    function rd(ra_h, dec_d) {
+      const ra  = ra_h  * Math.PI / 12;
+      const dec = dec_d * Math.PI / 180;
+      return [
+         R * Math.cos(dec) * Math.cos(ra),
+         R * Math.sin(dec),
+        -R * Math.cos(dec) * Math.sin(ra)   // flip Z → camera looks inside
+      ];
+    }
+
+    // ── Star catalog  [id, ra_h, dec_d, mag, spectral] ──
+    // Source: Hipparcos / Yale Bright Star Catalogue
+    const CATALOG = [
+      // ORION
+      ['Betelgeuse',  5.9195, +7.407,  0.42,'M'],
+      ['Rigel',       5.2423,-8.202,   0.13,'B'],
+      ['Bellatrix',   5.4189,+6.350,   1.64,'B'],
+      ['Mintaka',     5.5334,-0.299,   2.23,'O'],
+      ['Alnilam',     5.6036,-1.202,   1.69,'B'],
+      ['Alnitak',     5.6793,-1.943,   1.74,'O'],
+      ['Saiph',       5.7960,-9.670,   2.07,'B'],
+      ['Meissa',      5.5856,+9.934,   3.39,'O'],
+      // URSA MAJOR
+      ['Dubhe',      11.0619,+61.751,  1.79,'K'],
+      ['Merak',      11.0307,+56.383,  2.37,'A'],
+      ['Phecda',     11.8972,+53.694,  2.44,'A'],
+      ['Megrez',     12.2571,+57.033,  3.31,'A'],
+      ['Alioth',     12.9005,+55.960,  1.77,'A'],
+      ['Mizar',      13.3987,+54.925,  2.23,'A'],
+      ['Alkaid',     13.7923,+49.313,  1.86,'B'],
+      // URSA MINOR
+      ['Polaris',     2.5303,+89.264,  1.97,'F'],
+      ['Kochab',     14.8451,+74.156,  2.08,'K'],
+      ['Pherkad',    15.3455,+71.834,  3.05,'A'],
+      // CASSIOPEIA
+      ['Schedar',     0.6751,+56.538,  2.24,'K'],
+      ['Caph',        0.1530,+59.150,  2.27,'F'],
+      ['GammaCas',    0.9451,+60.717,  2.15,'B'],
+      ['Ruchbah',     1.4303,+60.236,  2.68,'A'],
+      ['Segin',       1.9066,+63.670,  3.35,'B'],
+      // PERSEUS
+      ['Mirfak',      3.4054,+49.861,  1.80,'F'],
+      ['Algol',       3.1361,+40.957,  2.09,'B'],
+      ['GammaPer',    3.0799,+53.506,  2.93,'G'],
+      ['DeltaPer',    3.7154,+47.788,  3.01,'B'],
+      ['EpsilonPer',  3.9645,+40.010,  2.89,'B'],
+      // TAURUS
+      ['Aldebaran',   4.5987,+16.509,  0.85,'K'],
+      ['Elnath',      5.4382,+28.608,  1.65,'B'],
+      ['Alcyone',     3.7914,+24.105,  2.87,'B'],
+      ['AinTau',      4.4770,+19.181,  3.53,'K'],
+      ['ZetaTau',     5.6274,+21.143,  2.97,'B'],
+      // GEMINI
+      ['Castor',      7.5766,+31.888,  1.58,'A'],
+      ['Pollux',      7.7553,+28.026,  1.14,'K'],
+      ['Alhena',      6.6285,+16.399,  1.93,'A'],
+      ['Tejat',       6.3827,+22.514,  2.87,'M'],
+      ['Mebsuda',     6.7322,+25.131,  3.00,'G'],
+      ['Propus',      6.2479,+22.507,  3.30,'M'],
+      ['Wasat',       7.3354,+21.982,  3.53,'F'],
+      // AURIGA
+      ['Capella',     5.2782,+45.998,  0.08,'G'],
+      ['Menkalinan',  5.9921,+44.947,  1.90,'A'],
+      ['ThetaAur',    5.9954,+37.213,  2.99,'A'],
+      ['IotaAur',     4.9499,+33.166,  2.69,'K'],
+      // LEO
+      ['Regulus',    10.1395,+11.967,  1.35,'B'],
+      ['Denebola',   11.8177,+14.572,  2.14,'A'],
+      ['Algieba',    10.3329,+19.841,  2.01,'K'],
+      ['Zosma',      11.2349,+20.524,  2.56,'A'],
+      ['EpsilonLeo',  9.7642,+23.774,  2.98,'G'],
+      ['ZetaLeo',    10.2782,+23.417,  3.44,'F'],
+      ['EtaLeo',     10.1222,+16.763,  3.52,'A'],
+      // VIRGO
+      ['Spica',      13.4199,-11.161,  0.97,'B'],
+      ['Porrima',    12.6944,-1.449,   2.74,'F'],
+      ['Vindemiatrix',13.0363,+10.959, 2.83,'G'],
+      // BOÖTES
+      ['Arcturus',   14.2611,+19.183, -0.04,'K'],
+      ['Nekkar',     15.0324,+40.391,  3.49,'G'],
+      ['Izar',       14.7498,+27.074,  2.70,'K'],
+      ['Muphrid',    13.9114,+18.397,  2.68,'G'],
+      ['RhoBoo',     14.5307,+30.371,  3.58,'K'],
+      ['GammaBoo',   14.5346,+38.308,  3.03,'A'],
+      // CORONA BOREALIS
+      ['Alphecca',   15.5781,+26.714,  2.23,'A'],
+      ['BetaCrB',    15.4638,+29.106,  3.65,'F'],
+      ['GammaCrB',   15.7124,+26.295,  3.84,'A'],
+      // HERCULES
+      ['Kornephoros',16.5037,+21.489,  2.77,'G'],
+      ['ZetaHer',    16.6881,+31.603,  2.81,'F'],
+      ['PiHer',      17.2508,+36.809,  3.16,'K'],
+      ['EtaHer',     16.7149,+38.922,  3.53,'G'],
+      ['DeltaHer',   17.2505,+24.839,  3.14,'A'],
+      ['Rasalgethi', 17.2441,+14.390,  3.35,'M'],
+      // LYRA
+      ['Vega',       18.6157,+38.784,  0.03,'A'],
+      ['Sheliak',    18.8347,+33.363,  3.52,'B'],
+      ['Sulafat',    18.9824,+32.690,  3.25,'A'],
+      // CYGNUS
+      ['Deneb',      20.6904,+45.280,  1.25,'A'],
+      ['Albireo',    19.5120,+27.960,  3.08,'K'],
+      ['Sadr',       20.3705,+40.257,  2.23,'F'],
+      ['DeltaCyg',   19.7496,+45.131,  2.87,'A'],
+      ['EpsilonCyg', 20.7701,+33.970,  2.48,'K'],
+      ['ZetaCyg',    21.2156,+30.227,  3.20,'G'],
+      // AQUILA
+      ['Altair',     19.8464,+8.868,   0.76,'A'],
+      ['Alshain',    19.9219,+6.407,   3.71,'G'],
+      ['Tarazed',    19.7710,+10.613,  2.72,'K'],
+      ['LambdaAql',  19.1041,-4.882,   3.44,'B'],
+      // SCORPIUS
+      ['Antares',    16.4901,-26.432,  1.06,'M'],
+      ['Shaula',     17.5601,-37.104,  1.62,'B'],
+      ['BetaSco',    16.0908,-19.806,  2.62,'B'],
+      ['DeltaSco',   16.0056,-22.622,  2.32,'B'],
+      ['SigmaSco',   16.3531,-25.593,  2.89,'B'],
+      ['TauSco',     16.5981,-28.216,  2.82,'B'],
+      ['EpsilonSco', 16.8361,-34.293,  2.29,'K'],
+      ['ThetaSco',   17.6219,-42.997,  1.86,'F'],
+      // SAGITTARIUS
+      ['KausAustralis',18.4029,-34.384,1.79,'B'],
+      ['Nunki',      18.9210,-26.297,  2.02,'B'],
+      ['KausBorealis',18.4661,-25.422, 2.81,'K'],
+      ['KausMedia',  18.3499,-29.828,  2.70,'K'],
+      ['Ascella',    19.0435,-29.880,  2.60,'A'],
+      ['PhiSgr',     18.7610,-26.991,  3.17,'B'],
+      // ANDROMEDA
+      ['Alpheratz',   0.1398,+29.091,  2.07,'B'],
+      ['Mirach',      1.1622,+35.620,  2.06,'M'],
+      ['Almach',      2.0650,+42.330,  2.17,'K'],
+      // PEGASUS
+      ['Markab',     23.0793,+15.206,  2.49,'B'],
+      ['Scheat',     23.0629,+28.083,  2.44,'M'],
+      ['Algenib',     0.2207,+15.183,  2.83,'B'],
+      ['Enif',       21.7364,+9.875,   2.38,'K'],
+      ['Matar',      22.7167,+30.222,  2.83,'G'],
+      // ARIES
+      ['Hamal',       2.1190,+23.462,  2.01,'K'],
+      ['Sheratan',    1.9107,+20.808,  2.64,'A'],
+      ['Mesarthim',   1.8921,+19.294,  3.88,'A'],
+      // DRACO
+      ['Eltanin',    17.9435,+51.489,  2.24,'K'],
+      ['Rastaban',   17.5072,+52.301,  2.79,'G'],
+      ['EtaDra',     16.4000,+61.514,  2.74,'G'],
+      ['ThetaDra',   16.0314,+58.566,  3.07,'F'],
+      ['IotaDra',    15.4153,+58.966,  3.29,'K'],
+      // CANIS MAJOR
+      ['Sirius',      6.7526,-16.716, -1.46,'A'],
+      ['Adhara',      6.9771,-28.972,  1.50,'B'],
+      ['Wezen',       7.1399,-26.393,  1.83,'F'],
+      ['Mirzam',      6.3783,-17.956,  1.98,'B'],
+      ['Aludra',      7.4016,-29.303,  2.45,'B'],
+      // CANIS MINOR
+      ['Procyon',     7.6551,+5.225,   0.34,'F'],
+      ['Gomeisa',     7.4525,+8.289,   2.89,'B'],
+      // HYDRA
+      ['Alphard',     9.4597,-8.659,   1.99,'K'],
+    ];
+
+    // ── Constellation stick-figure lines [starId1, starId2] ──
+    const CONST_LINES = [
+      // ORION  ★
+      ['Meissa','Betelgeuse'],['Meissa','Bellatrix'],
+      ['Betelgeuse','Alnilam'],['Bellatrix','Mintaka'],
+      ['Mintaka','Alnilam'],['Alnilam','Alnitak'],
+      ['Bellatrix','Rigel'],['Alnitak','Saiph'],['Rigel','Saiph'],
+      // URSA MAJOR (Big Dipper)  ★
+      ['Dubhe','Merak'],['Merak','Phecda'],['Phecda','Megrez'],['Megrez','Dubhe'],
+      ['Megrez','Alioth'],['Alioth','Mizar'],['Mizar','Alkaid'],
+      // URSA MINOR  ★
+      ['Polaris','Pherkad'],['Pherkad','Kochab'],
+      // CASSIOPEIA  ★
+      ['Caph','Schedar'],['Schedar','GammaCas'],['GammaCas','Ruchbah'],['Ruchbah','Segin'],
+      // PERSEUS
+      ['GammaPer','Mirfak'],['Mirfak','Algol'],
+      ['Mirfak','DeltaPer'],['DeltaPer','EpsilonPer'],
+      // TAURUS
+      ['Alcyone','Aldebaran'],['Aldebaran','AinTau'],
+      ['Aldebaran','Elnath'],['AinTau','ZetaTau'],['ZetaTau','Elnath'],
+      // GEMINI
+      ['Castor','Pollux'],
+      ['Castor','Mebsuda'],['Mebsuda','Propus'],['Propus','Tejat'],
+      ['Pollux','Wasat'],['Wasat','Alhena'],
+      // AURIGA
+      ['Capella','Menkalinan'],['Menkalinan','ThetaAur'],
+      ['ThetaAur','IotaAur'],['IotaAur','Capella'],['Elnath','ThetaAur'],
+      // LEO (Sickle + body)
+      ['Regulus','EtaLeo'],['EtaLeo','ZetaLeo'],['ZetaLeo','EpsilonLeo'],
+      ['EpsilonLeo','Algieba'],['Algieba','Regulus'],
+      ['Algieba','Zosma'],['Zosma','Denebola'],
+      // VIRGO
+      ['Spica','Porrima'],['Porrima','Vindemiatrix'],
+      // BOÖTES
+      ['Arcturus','Muphrid'],['Arcturus','Izar'],
+      ['Izar','Nekkar'],['Nekkar','GammaBoo'],['GammaBoo','RhoBoo'],['RhoBoo','Arcturus'],
+      // CORONA BOREALIS
+      ['BetaCrB','Alphecca'],['Alphecca','GammaCrB'],
+      // HERCULES (Keystone)
+      ['Kornephoros','ZetaHer'],['ZetaHer','EtaHer'],['EtaHer','PiHer'],['PiHer','DeltaHer'],['DeltaHer','Kornephoros'],
+      ['Kornephoros','Rasalgethi'],
+      // LYRA
+      ['Vega','Sheliak'],['Vega','Sulafat'],['Sheliak','Sulafat'],
+      // CYGNUS (Northern Cross)
+      ['Deneb','Sadr'],['Sadr','Albireo'],
+      ['DeltaCyg','Sadr'],['Sadr','EpsilonCyg'],['EpsilonCyg','ZetaCyg'],
+      // AQUILA
+      ['Tarazed','Altair'],['Altair','Alshain'],['Altair','LambdaAql'],
+      // SCORPIUS
+      ['BetaSco','DeltaSco'],['DeltaSco','Antares'],
+      ['Antares','SigmaSco'],['Antares','TauSco'],
+      ['TauSco','EpsilonSco'],['EpsilonSco','Shaula'],['Shaula','ThetaSco'],
+      // SAGITTARIUS (Teapot)
+      ['KausBorealis','KausMedia'],['KausMedia','KausAustralis'],
+      ['KausAustralis','Ascella'],['KausBorealis','PhiSgr'],
+      ['PhiSgr','Nunki'],['Nunki','Ascella'],
+      // ANDROMEDA
+      ['Alpheratz','Mirach'],['Mirach','Almach'],
+      // PEGASUS (Great Square — Alpheratz shared with Andromeda)
+      ['Markab','Scheat'],['Scheat','Alpheratz'],
+      ['Alpheratz','Algenib'],['Algenib','Markab'],['Markab','Enif'],
+      // ARIES
+      ['Hamal','Sheratan'],['Sheratan','Mesarthim'],
+      // DRACO
+      ['Eltanin','Rastaban'],['Rastaban','EtaDra'],['EtaDra','ThetaDra'],['ThetaDra','IotaDra'],
+      // CANIS MAJOR
+      ['Sirius','Mirzam'],['Sirius','Adhara'],['Sirius','Wezen'],['Adhara','Aludra'],['Wezen','Aludra'],
+      // CANIS MINOR
+      ['Procyon','Gomeisa'],
+    ];
+
+    // ── Spectral type → star color ──
+    const SPEC_COLOR = {
+      O:new THREE.Color(0x9bb0ff),
+      B:new THREE.Color(0xaabfff),
+      A:new THREE.Color(0xcad7ff),
+      F:new THREE.Color(0xf8f7ff),
+      G:new THREE.Color(0xfff4ea),
+      K:new THREE.Color(0xffd2a1),
+      M:new THREE.Color(0xffcc6f),
+    };
+
+    function magToSize(m) {
+      if (m < 0)   return 4.2;
+      if (m < 1.0) return 3.4;
+      if (m < 2.0) return 2.6;
+      if (m < 3.0) return 1.9;
+      if (m < 4.0) return 1.3;
+      return 0.85;
+    }
+
+    // ── Build bright star Points ──
+    const starPositions = [];
+    const starColors    = [];
+    const starSizes     = [];
+    const starIndex     = new Map();
+
+    CATALOG.forEach(([id, ra, dec, mag, sp], i) => {
+      starIndex.set(id, i);
+      const [x,y,z] = rd(ra, dec);
+      starPositions.push(x,y,z);
+      const c = SPEC_COLOR[sp] || SPEC_COLOR.A;
+      starColors.push(c.r, c.g, c.b);
+      starSizes.push(magToSize(mag));
+    });
+
+    // ── Shader-based star Points (glow effect via size) ──
+    const starGeo = new THREE.BufferGeometry();
+    starGeo.setAttribute('position',new THREE.BufferAttribute(new Float32Array(starPositions),3));
+    starGeo.setAttribute('color',   new THREE.BufferAttribute(new Float32Array(starColors),3));
+    starGeo.setAttribute('size',    new THREE.BufferAttribute(new Float32Array(starSizes),1));
+
+    const starMat = new THREE.PointsMaterial({
+      vertexColors: true, transparent: true, opacity: 0.95,
+      sizeAttenuation: false,  // screen-space size for real star look
+      depthWrite: false,
+    });
+    // We'll use individual sizes via per-point size — but THREE PointsMaterial
+    // doesn't support per-point size natively; use the average and vary by
+    // setting size to max, then tint opacity. Workaround: render each magnitude
+    // bin as a separate Points object.
+    const BINS = [
+      { minM:-2, maxM: 0.5, size: 4.2 },
+      { minM: 0.5, maxM:1.5, size: 3.2 },
+      { minM: 1.5, maxM:2.5, size: 2.4 },
+      { minM: 2.5, maxM:3.5, size: 1.7 },
+      { minM: 3.5, maxM:99,  size: 1.1 },
+    ];
+    BINS.forEach(bin => {
+      const pts=[], cols=[];
+      CATALOG.forEach(([id, ra, dec, mag, sp]) => {
+        if (mag >= bin.minM && mag < bin.maxM) {
+          const [x,y,z]=rd(ra,dec); pts.push(x,y,z);
+          const c=SPEC_COLOR[sp]||SPEC_COLOR.A; cols.push(c.r,c.g,c.b);
+        }
+      });
+      if (!pts.length) return;
+      const g=new THREE.BufferGeometry();
+      g.setAttribute('position',new THREE.BufferAttribute(new Float32Array(pts),3));
+      g.setAttribute('color',   new THREE.BufferAttribute(new Float32Array(cols),3));
+      const m=new THREE.PointsMaterial({vertexColors:true,transparent:true,
+        opacity:0.95,size:bin.size,sizeAttenuation:false,depthWrite:false});
+      sky.add(new THREE.Points(g,m));
+    });
+
+    // ── Background faint stars (random on sphere) ──
+    (function() {
+      const N = 1800;
+      const pts=[], cols=[];
+      for (let i=0;i<N;i++) {
+        // Uniform random point on sphere
+        const u = Math.random()*2-1;
+        const th = Math.random()*Math.PI*2;
+        const r  = Math.sqrt(1-u*u);
+        pts.push(R*r*Math.cos(th), R*u, -R*r*Math.sin(th));
+        // Very faint blue-white
+        const br = 0.35+Math.random()*0.45;
+        cols.push(br*0.75, br*0.82, br);
+      }
+      const g=new THREE.BufferGeometry();
+      g.setAttribute('position',new THREE.BufferAttribute(new Float32Array(pts),3));
+      g.setAttribute('color',   new THREE.BufferAttribute(new Float32Array(cols),3));
+      const m=new THREE.PointsMaterial({vertexColors:true,transparent:true,
+        opacity:0.55,size:0.6,sizeAttenuation:false,depthWrite:false});
+      sky.add(new THREE.Points(g,m));
+    })();
+
+    // ── Constellation lines (gold) ──
+    (function() {
+      // Build lookup: starId → position
+      const pos = new Map();
+      CATALOG.forEach(([id,ra,dec]) => { pos.set(id, rd(ra,dec)); });
+
+      const pts=[], cols=[];
+      CONST_LINES.forEach(([a,b]) => {
+        const pa=pos.get(a), pb=pos.get(b);
+        if (!pa||!pb) { console.warn('Missing star:',a,b); return; }
+        pts.push(...pa, ...pb);
+        // Gold constellation line: #8eb4e0 = 0.557, 0.706, 0.878
+        cols.push(0.557,0.706,0.878, 0.557,0.706,0.878);
+      });
+
+      const g=new THREE.BufferGeometry();
+      g.setAttribute('position',new THREE.BufferAttribute(new Float32Array(pts),3));
+      g.setAttribute('color',   new THREE.BufferAttribute(new Float32Array(cols),3));
+      const m=new THREE.LineBasicMaterial({vertexColors:true,transparent:true,opacity:0.35,depthWrite:false});
+      sky.add(new THREE.LineSegments(g,m));
+    })();
+
+    // ── Milky Way hint (faint band of stars along galactic plane) ──
+    (function() {
+      // Galactic plane: longitude 0–360°, latitude near 0°
+      // Galactic coords → equatorial (approximate)
+      const N=600, pts=[], cols=[];
+      for (let i=0;i<N;i++) {
+        const gl = Math.random()*360*Math.PI/180;
+        const gb = (Math.random()-0.5)*30*Math.PI/180; // ±15° of galactic plane
+        // Approximate galactic→equatorial: NGP at RA 12h51.4m, Dec +27.13°
+        // Galactic north pole in equatorial:
+        const ngp_ra=12.8572*Math.PI/12, ngp_dec=27.13*Math.PI/180;
+        // Use simplified rotation (approximate for visual effect)
+        // Galactic center at RA 17h45.6m, Dec -28.94°
+        const gc_ra=17.76*Math.PI/12, gc_dec=-28.94*Math.PI/180;
+        // Generate point near galactic plane
+        const x_eq = Math.cos(gb)*Math.cos(gl);
+        const y_eq = Math.cos(gb)*Math.sin(gl);
+        const z_eq = Math.sin(gb);
+        // Rotate from galactic to equatorial (simplified)
+        const ra_rad = Math.atan2(
+          -x_eq*Math.sin(ngp_ra) + y_eq*Math.cos(ngp_ra),
+           x_eq*Math.cos(ngp_dec)*Math.cos(ngp_ra) + y_eq*Math.cos(ngp_dec)*Math.sin(ngp_ra) + z_eq*Math.sin(ngp_dec)
+        );
+        const dec_rad = Math.asin(
+          -x_eq*Math.sin(ngp_dec)*Math.cos(ngp_ra)
+          - y_eq*Math.sin(ngp_dec)*Math.sin(ngp_ra)
+          + z_eq*Math.cos(ngp_dec)
+        );
+        const ra_h = ra_rad * 12 / Math.PI;
+        const dec_d = dec_rad * 180 / Math.PI;
+        const [px,py,pz] = rd(ra_h, dec_d);
+        pts.push(px,py,pz);
+        const br=0.1+Math.random()*0.18;
+        cols.push(br*0.7,br*0.78,br);
+      }
+      const g=new THREE.BufferGeometry();
+      g.setAttribute('position',new THREE.BufferAttribute(new Float32Array(pts),3));
+      g.setAttribute('color',   new THREE.BufferAttribute(new Float32Array(cols),3));
+      const m=new THREE.PointsMaterial({vertexColors:true,transparent:true,
+        opacity:0.45,size:0.9,sizeAttenuation:false,depthWrite:false});
+      sky.add(new THREE.Points(g,m));
+    })();
+
+    // ── Mouse parallax ──
+    let mX=0, mY=0, camRotX=0, camRotY=0;
+    document.addEventListener('mousemove', e => {
+      mX = (e.clientX/window.innerWidth  - 0.5)*2;
+      mY = (e.clientY/window.innerHeight - 0.5)*2;
+    });
+
+    // ── Animation loop ──
+    const SIDEREAL_RATE = 0.000022; // rad/frame @60fps ≈ 1 full rot per ~70 min
+    let t = 0;
+    function animate() {
+      requestAnimationFrame(animate);
+      t += SIDEREAL_RATE;
+      sky.rotation.y += SIDEREAL_RATE;  // slow sidereal drift
+
+      // Smooth mouse parallax
+      camRotY += (mX * 0.05 - camRotY) * 0.025;
+      camRotX += (-mY * 0.03 - camRotX) * 0.025;
+      camera.rotation.y = camRotY;
+      camera.rotation.x = camRotX;
+
+      renderer.render(scene, camera);
+    }
+    animate();
+  })();
+  </script>
+
+  <!-- ─── PDF VIEWER MODAL ─── -->
+  <div class="pdf-overlay" id="pdfOverlay">
+    <div class="pdf-box">
+      <div class="pdf-bar">
+        <span class="pdf-bar-title" id="pdfTitle">Document</span>
+        <button class="pdf-close" onclick="closePdf()">✕</button>
+      </div>
+      <iframe id="pdfFrame" src=""></iframe>
+    </div>
+  </div>
+  <script>
+  function openPdf(url, label) {
+    document.getElementById('pdfFrame').src = url + '#toolbar=1&navpanes=0';
+    document.getElementById('pdfTitle').textContent = label;
+    document.getElementById('pdfOverlay').classList.add('open');
+    document.body.style.overflow = 'hidden';
+  }
+  function closePdf() {
+    document.getElementById('pdfOverlay').classList.remove('open');
+    document.getElementById('pdfFrame').src = '';
+    document.body.style.overflow = '';
+  }
+  document.getElementById('pdfOverlay').addEventListener('click', function(e) {
+    if (e.target === this) closePdf();
+  });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') closePdf(); });
+
+  // Wrap every PDF doc-row with a group + view button
+  document.querySelectorAll('a.doc-row[href$=".pdf"]').forEach(a => {
+    const label = a.querySelector('.doc-label')?.textContent || 'Document';
+    const url   = a.getAttribute('href');
+    const wrap  = document.createElement('div');
+    wrap.className = 'doc-row-group';
+    a.parentNode.insertBefore(wrap, a);
+    wrap.appendChild(a);
+    const btn = document.createElement('button');
+    btn.className = 'btn-view';
+    btn.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>Voir';
+    btn.onclick = () => openPdf(url, label);
+    wrap.appendChild(btn);
+  });
+
+  // CV button — add a "Voir" button next to the download button
+  document.querySelectorAll('a.btn-gold[href="documents/cv.pdf"]').forEach(a => {
+    const btn = document.createElement('button');
+    btn.className = 'btn-view';
+    btn.style.cssText = 'padding:10px 18px;';
+    btn.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>Voir le CV';
+    btn.onclick = () => openPdf('documents/cv.pdf', 'Curriculum Vitæ');
+    a.insertAdjacentElement('afterend', btn);
+  });
+  </script>
+</body>
+</html>
